@@ -129,4 +129,53 @@ object TelegramApi {
             Log.e(TAG, "answerCallbackQuery error: ${e.message}")
         }
     }
+
+    fun sendPhoto(context: Context, photoFile: File, caption: String? = null) {
+        try {
+            if (!photoFile.exists()) {
+                sendMessage(context, "❌ Photo file not found")
+                return
+            }
+            if (photoFile.length() > MAX_FILE_SIZE) {
+                sendMessage(context, "❌ Photo file too large")
+                return
+            }
+            val requestBody = MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("chat_id", getChatId(context))
+                .addFormDataPart("photo", photoFile.name, photoFile.asRequestBody("image/jpeg".toMediaType()))
+            caption?.let { requestBody.addFormDataPart("caption", it) }
+            requestBody.addFormDataPart("parse_mode", "HTML")
+            val request = Request.Builder()
+                .url("${getApiUrl(context)}/sendPhoto")
+                .post(requestBody.build())
+                .build()
+            client.newCall(request).execute().use {}
+        } catch (e: Exception) {
+            Log.e(TAG, "sendPhoto error: ${e.message}")
+        }
+    }
+
+    fun sendLocation(context: Context, latitude: Double, longitude: Double, caption: String? = null) {
+        try {
+            // Send the location first
+            val locationJson = JsonObject().apply {
+                addProperty("chat_id", getChatId(context))
+                addProperty("latitude", latitude)
+                addProperty("longitude", longitude)
+            }
+            val locationRequest = Request.Builder()
+                .url("${getApiUrl(context)}/sendLocation")
+                .post(locationJson.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(locationRequest).execute().use {}
+
+            // Send caption as separate message if provided
+            if (caption != null) {
+                sendMessage(context, caption, parseMode = "HTML")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "sendLocation error: ${e.message}")
+        }
+    }
 }

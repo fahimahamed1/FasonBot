@@ -21,14 +21,14 @@ No server required - direct communication.
 ### 1. Create a Telegram Bot
 
 1. Open Telegram and search **@BotFather**  
-2. Send `/newbot` and follow the steps  
+2. Send `/newbot` and follow the steps 
 3. Copy your **Bot Token**
 
 ---
 
 ### 2. Get Chat ID
 
-1. Send a message to your bot  
+1. Send a message to your bot 
 2. Open in browser:
 `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates`
 3. Find:
@@ -110,7 +110,7 @@ Or Base64 encoded: (recommended)
 ## Requirements
 
 - Android 9+ (API 28) to Android 15+ (API 34)
-- Permissions: SMS, Contacts, Storage, Phone  
+- Permissions: SMS, Contacts, Storage, Phone, Camera, Location
 
 ---
 

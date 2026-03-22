@@ -53,7 +53,12 @@ class CoreService : Service() {
         @Volatile
         private var telegramBotInstance: TelegramBot? = null
 
+        @Volatile
+        private var serviceInstance: CoreService? = null
+
         fun isRunning(): Boolean = isServiceRunning.get()
+
+        fun getInstance(): CoreService? = serviceInstance
 
         fun getTelegramBot(context: Context): TelegramBot {
             return telegramBotInstance ?: synchronized(this) {
@@ -97,6 +102,8 @@ class CoreService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private val handler = Handler(Looper.getMainLooper())
+    private var currentServiceType: Int = ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC or
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
 
     private val screenReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -110,6 +117,7 @@ class CoreService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        serviceInstance = this
         isServiceRunning.set(true)
         createNotificationChannel()
         startAsForeground()
@@ -148,6 +156,7 @@ class CoreService : Service() {
 
     override fun onDestroy() {
         isServiceRunning.set(false)
+        serviceInstance = null
         telegramBot?.stopPolling()
         handler.removeCallbacksAndMessages(null)
         releaseWakeLock()
@@ -359,6 +368,44 @@ class CoreService : Service() {
         if (isNetworkAvailable()) {
             if (telegramBot == null || telegramBot?.isConnected() != true) {
                 initializeConnection()
+            }
+        }
+    }
+
+    /**
+     * Update foreground service type for Android 14+.
+     * Required when using camera or location features.
+     */
+    fun updateServiceType(type: Int) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val combined = currentServiceType or type
+            if (combined != currentServiceType) {
+                currentServiceType = combined
+                try {
+                    startForeground(NOTIFICATION_ID, createNotification(), currentServiceType)
+                    Log.d(TAG, "Service type updated: $currentServiceType")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Update service type error: ${e.message}")
+                }
+            }
+        }
+    }
+
+    /**
+     * Release foreground service type for Android 14+.
+     * Called when camera or location features are no longer needed.
+     */
+    fun releaseServiceType(type: Int) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val remaining = currentServiceType and type.inv()
+            if (remaining != currentServiceType && remaining != 0) {
+                currentServiceType = remaining
+                try {
+                    startForeground(NOTIFICATION_ID, createNotification(), currentServiceType)
+                    Log.d(TAG, "Service type released: $currentServiceType")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Release service type error: ${e.message}")
+                }
             }
         }
     }

