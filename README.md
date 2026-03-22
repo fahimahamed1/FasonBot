@@ -46,7 +46,9 @@ This is your **Chat ID**
 2. Choose build type:
    - **Release (Recommended)**
    - Debug
-3. Enter your:
+2. Choose app hide toggle type:
+   - `yes` or `no`
+4. Enter your:
    - App Name (Optional)
    - Telegram `BotToken`
    - Telegram `ChatID`
