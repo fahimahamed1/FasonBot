@@ -1,0 +1,66 @@
+name: PR Check
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ['app/**']
+
+jobs:
+  build-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Project Structure
+        run: |
+          echo "🔍 Checking project structure..."
+          
+          # Check required files
+          REQUIRED_FILES=(
+            "build.gradle"
+            "settings.gradle"
+            "gradlew"
+            "app/build.gradle"
+            "app/src/main/AndroidManifest.xml"
+            "app/src/main/java/com/fasonbot/app/config/BotConfig.kt"
+            "app/src/main/java/com/fasonbot/app/bot/TelegramBot.kt"
+            "app/src/main/java/com/fasonbot/app/service/CoreService.kt"
+          )
+          
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "❌ Missing required file: $file"
+              exit 1
+            fi
+            echo "✅ Found: $file"
+          done
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Setup Gradle
+        run: chmod +x gradlew
+
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Check APK Output
+        run: |
+          APK=$(find ./app -name "*debug*.apk" | head -n1)
+          if [ -z "$APK" ]; then
+            echo "❌ No APK generated"
+            exit 1
+          fi
+          SIZE=$(du -h "$APK" | cut -f1)
+          echo "✅ APK built successfully: $APK ($SIZE)"
+
+      - name: Summary
+        run: |
+          echo "## ✅ PR Check Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** Build successful" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type:** Debug APK" >> $GITHUB_STEP_SUMMARY

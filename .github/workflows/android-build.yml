@@ -1,0 +1,237 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+    paths: ['app/**']
+  pull_request:
+    branches: [main]
+    paths: ['app/**']
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'debug'
+        type: choice
+        options: ['debug', 'release', 'both']
+      app_name:
+        description: 'App name (optional)'
+        required: false
+        default: ''
+        type: string
+      create_release:
+        description: 'Create release?'
+        required: true
+        default: 'no'
+        type: choice
+        options: ['yes', 'no']
+      custom_version:
+        description: 'Version tag (optional)'
+        required: false
+        default: ''
+        type: string
+      prerelease:
+        description: 'Pre-release?'
+        required: true
+        default: 'no'
+        type: choice
+        options: ['yes', 'no']
+      bot_token:
+        description: 'Bot Token (overrides secret)'
+        required: false
+        default: ''
+        type: string
+      chat_id:
+        description: 'Chat ID (overrides secret)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      BUILD_TYPE: ${{ github.event.inputs.build_type || 'debug' }}
+      CREATE_RELEASE: ${{ github.event.inputs.create_release || 'no' }}
+      IS_PRERELEASE: ${{ github.event.inputs.prerelease || 'no' }}
+      APP_NAME: ${{ github.event.inputs.app_name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get Version
+        id: version
+        run: |
+          GRADLE="./app/build.gradle"
+          V_NAME=$(grep "versionName" "$GRADLE" | sed 's/.*versionName[ =]*"\{0,1\}//;s/"//g')
+          V_CODE=$(grep "versionCode" "$GRADLE" | sed 's/.*versionCode[ =]*//')
+          [ -n "${{ github.event.inputs.custom_version }}" ] && V_NAME="${{ github.event.inputs.custom_version }}"
+          [ -z "$V_NAME" ] && V_NAME="1.0.0-$(git rev-parse --short HEAD)"
+          echo "name=$V_NAME" >> $GITHUB_OUTPUT
+          echo "code=$V_CODE" >> $GITHUB_OUTPUT
+
+      - name: Set App Name
+        if: env.APP_NAME != ''
+        run: |
+          FILE="./app/src/main/res/values/strings.xml"
+          sed -i "s|<string name=\"app_name\">.*</string>|<string name=\"app_name\">$APP_NAME</string>|" "$FILE"
+
+      - name: Set Bot Credentials
+        env:
+          INPUT_TOKEN: ${{ github.event.inputs.bot_token }}
+          INPUT_ID: ${{ github.event.inputs.chat_id }}
+          SECRET_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          SECRET_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          TOKEN="${INPUT_TOKEN:-$SECRET_TOKEN}"
+          CHAT="${INPUT_ID:-$SECRET_ID}"
+          
+          if [ -z "$TOKEN" ] || [ -z "$CHAT" ]; then
+            echo "No credentials - using empty config"
+            exit 0
+          fi
+          
+          echo "Injecting credentials..."
+          
+          # Base64 encode JSON with camelCase keys matching BotConfig.kt
+          DATA=$(echo -n "{\"botToken\":\"$TOKEN\",\"chatId\":\"$CHAT\"}" | base64 -w0)
+          
+          FILE="./app/src/main/java/com/fasonbot/app/config/BotConfig.kt"
+          
+          # Match indented constant in Kotlin object
+          sed -i "s|private const val CONFIG_DATA = \".*\"|private const val CONFIG_DATA = \"$DATA\"|" "$FILE"
+          
+          echo "Credentials injected"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Setup Gradle
+        run: chmod +x gradlew
+
+      - name: Setup Signing
+        if: env.BUILD_TYPE == 'release' || env.BUILD_TYPE == 'both'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "Checking signing configuration..."
+          
+          # Check if GitHub secrets are provided (priority)
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            echo "Using GitHub secrets for signing..."
+            echo "$KEYSTORE_BASE64" | base64 -d > release.keystore
+            
+            echo "storeFile=../release.keystore" > keystore.properties
+            echo "storePassword=$KEYSTORE_PASSWORD" >> keystore.properties
+            echo "keyAlias=$KEY_ALIAS" >> keystore.properties
+            echo "keyPassword=$KEY_PASSWORD" >> keystore.properties
+            
+            echo "Signing configured from GitHub secrets"
+          # Check if local keystore files exist in repo
+          elif [ -f "release.keystore" ] && [ -f "keystore.properties" ]; then
+            echo "Using local keystore files from repository..."
+            # Files already exist, no action needed
+            echo "Local keystore found and will be used"
+          else
+            echo "No keystore configuration found"
+            echo "Release build will be UNSIGNED"
+            # Remove keystore.properties if it exists but keystore doesn't
+            rm -f keystore.properties
+          fi
+          
+          # Verify signing configuration
+          if [ -f "keystore.properties" ] && [ -f "release.keystore" ]; then
+            echo "SIGNING_ENABLED=true" >> $GITHUB_ENV
+            echo "SIGNING_STATUS=signed" >> $GITHUB_OUTPUT
+            echo "✅ Signing is CONFIGURED"
+          else
+            echo "SIGNING_ENABLED=false" >> $GITHUB_ENV
+            echo "SIGNING_STATUS=unsigned" >> $GITHUB_OUTPUT
+            echo "⚠️ Signing is NOT configured - release will be UNSIGNED"
+          fi
+
+      - name: Build
+        run: |
+          case "$BUILD_TYPE" in
+            debug) ./gradlew assembleDebug ;;
+            release) ./gradlew assembleRelease ;;
+            both) ./gradlew assembleDebug assembleRelease ;;
+          esac
+
+      - name: Package APKs
+        id: apk
+        run: |
+          VER="${{ steps.version.outputs.name }}"
+          NAME="${APP_NAME:-FasonBot}"
+          
+          if [ "$BUILD_TYPE" = "debug" ] || [ "$BUILD_TYPE" = "both" ]; then
+            APK=$(find ./app -name "*debug*.apk" | head -n1)
+            [ -n "$APK" ] && cp "$APK" "${NAME}-v${VER}-debug.apk" && echo "debug=${NAME}-v${VER}-debug.apk" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ "$BUILD_TYPE" = "release" ] || [ "$BUILD_TYPE" = "both" ]; then
+            APK=$(find ./app -name "*release*.apk" | head -n1)
+            if [ -n "$APK" ]; then
+              if [ "$SIGNING_ENABLED" = "true" ]; then
+                cp "$APK" "${NAME}-v${VER}-release-signed.apk"
+                echo "release=${NAME}-v${VER}-release-signed.apk" >> $GITHUB_OUTPUT
+              else
+                cp "$APK" "${NAME}-v${VER}-release-unsigned.apk"
+                echo "release=${NAME}-v${VER}-release-unsigned.apk" >> $GITHUB_OUTPUT
+              fi
+            fi
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ steps.apk.outputs.debug != '' }}
+        with:
+          name: ${{ steps.apk.outputs.debug }}
+          path: ./${{ steps.apk.outputs.debug }}
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ steps.apk.outputs.release != '' }}
+        with:
+          name: ${{ steps.apk.outputs.release }}
+          path: ./${{ steps.apk.outputs.release }}
+          retention-days: 30
+
+      - name: Release
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && env.CREATE_RELEASE == 'yes'))
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.name }}
+          name: ${{ env.APP_NAME || 'FasonBot' }} v${{ steps.version.outputs.name }}
+          files: |
+            ${{ steps.apk.outputs.debug }}
+            ${{ steps.apk.outputs.release }}
+          prerelease: ${{ env.IS_PRERELEASE == 'yes' }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "## Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **App:** ${APP_NAME:-FasonBot}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ steps.version.outputs.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type:** $BUILD_TYPE" >> $GITHUB_STEP_SUMMARY
+          if [ "$BUILD_TYPE" = "release" ] || [ "$BUILD_TYPE" = "both" ]; then
+            if [ "$SIGNING_ENABLED" = "true" ]; then
+              echo "- **Signing:** ✅ Signed" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- **Signing:** ⚠️ Unsigned" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
