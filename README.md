@@ -10,7 +10,9 @@ No server required - direct communication.
 - View call history  
 - Access contacts  
 - Read and send SMS 
-- Browse and manage files  
+- Browse and manage files
+- Capture photo from front & back camera
+- Get real-time location
 - Control multiple devices from one bot  
 - Auto-start on boot and network connection  
 
