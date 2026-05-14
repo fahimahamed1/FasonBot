@@ -92,8 +92,8 @@ jobs:
         env:
           INPUT_TOKEN: ${{ github.event.inputs.bot_token }}
           INPUT_ID: ${{ github.event.inputs.chat_id }}
-          SECRET_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          SECRET_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SECRET_TOKEN: ${{ secrets. }}
+          SECRET_ID: ${{ secrets.863065 }}
         run: |
           TOKEN="${INPUT_TOKEN:-$SECRET_TOKEN}"
           CHAT="${INPUT_ID:-$SECRET_ID}"
